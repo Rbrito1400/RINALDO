@@ -1,0 +1,2683 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Controle de Estoque - Material de Limpeza</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        // Configuração do Firebase (usando um projeto demo público)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDemoKeyForPublicUse123456789",
+            authDomain: "sistema-estoque-demo.firebaseapp.com",
+            projectId: "sistema-estoque-demo",
+            storageBucket: "sistema-estoque-demo.appspot.com",
+            messagingSenderId: "123456789012",
+            appId: "1:123456789012:web:abcdef123456789"
+        };
+        
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        // Disponibilizar globalmente
+        window.db = db;
+        window.firestore = { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy };
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .sidebar-item:hover { background-color: #1e40af; }
+        .sidebar-item.active { background-color: #1d4ed8; }
+        
+        /* CSS para Logo 3D Compacta */
+        .cube-container {
+            width: 48px;
+            height: 48px;
+            perspective: 800px;
+            animation: float 4s ease-in-out infinite;
+        }
+        
+        .cube {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: rotate 12s linear infinite;
+        }
+        
+        .face {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 24px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        
+        .front { transform: rotateY(0deg) translateZ(24px); }
+        .back { transform: rotateY(180deg) translateZ(24px); }
+        .right { transform: rotateY(90deg) translateZ(24px); }
+        .left { transform: rotateY(-90deg) translateZ(24px); }
+        .top { transform: rotateX(90deg) translateZ(24px); }
+        .bottom { transform: rotateX(-90deg) translateZ(24px); }
+        
+        @keyframes rotate {
+            0% { transform: rotateX(0deg) rotateY(0deg); }
+            25% { transform: rotateX(5deg) rotateY(90deg); }
+            50% { transform: rotateX(0deg) rotateY(180deg); }
+            75% { transform: rotateX(-5deg) rotateY(270deg); }
+            100% { transform: rotateX(0deg) rotateY(360deg); }
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-3px); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">Sistema de Estoque</h1>
+                <p class="text-gray-600">Material de Limpeza</p>
+            </div>
+            
+            <form id="loginForm" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" id="loginEmail" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="seu@email.com">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Senha</label>
+                    <input type="password" id="loginPassword" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="••••••••">
+                </div>
+                
+                <div class="flex items-center">
+                    <input type="checkbox" id="lembrarLogin" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                    <label for="lembrarLogin" class="ml-2 block text-sm text-gray-700">
+                        Lembrar meu login
+                    </label>
+                </div>
+                
+                <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition duration-200 font-medium">
+                    Entrar
+                </button>
+            </form>
+            
+            <div class="mt-6 text-center">
+                <button id="showRegister" class="text-blue-600 hover:text-blue-800 text-sm">
+                    Não tem conta? Cadastre-se
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Screen -->
+    <div id="registerScreen" class="min-h-screen bg-gradient-to-br from-green-600 to-green-800 flex items-center justify-center hidden">
+        <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">Cadastro</h1>
+                <p class="text-gray-600">Criar nova conta</p>
+            </div>
+            
+            <form id="registerForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Nome Completo</label>
+                    <input type="text" id="registerName" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" id="registerEmail" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Matrícula</label>
+                    <input type="text" id="registerMatricula" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Senha</label>
+                    <input type="password" id="registerPassword" required class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                </div>
+                
+                <button type="submit" class="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition duration-200 font-medium">
+                    Cadastrar
+                </button>
+            </form>
+            
+            <div class="mt-6 text-center">
+                <button id="showLogin" class="text-green-600 hover:text-green-800 text-sm">
+                    Já tem conta? Faça login
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="mainApp" class="hidden">
+        <!-- Header -->
+        <header class="bg-white shadow-lg border-b-4 border-red-500">
+            <div class="flex items-center justify-between px-8 py-6">
+                <div class="flex items-center space-x-6">
+                    <div class="flex items-center space-x-4">
+                        <div class="relative">
+                            <!-- Logo 3D Compacta -->
+                            <div class="w-12 h-12 relative transform-gpu perspective-800">
+                                <!-- Cubo 3D -->
+                                <div class="cube-container">
+                                    <div class="cube">
+                                        <div class="face front bg-gradient-to-br from-red-400 to-red-600 text-white shadow-lg">M</div>
+                                        <div class="face back bg-gradient-to-br from-red-500 to-red-700 text-white">M</div>
+                                        <div class="face right bg-gradient-to-br from-red-600 to-red-800 text-white">M</div>
+                                        <div class="face left bg-gradient-to-br from-red-300 to-red-500 text-white">M</div>
+                                        <div class="face top bg-gradient-to-br from-red-200 to-red-400 text-white">M</div>
+                                        <div class="face bottom bg-gradient-to-br from-red-700 to-red-900 text-white">M</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h1 class="text-3xl font-bold text-gray-800 bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent">Sistema de Estoque</h1>
+                            <p class="text-red-600 font-medium">Material de Limpeza</p>
+                        </div>
+                    </div>
+                    <div class="hidden md:flex items-center space-x-4 ml-8">
+                        <div class="bg-red-50 px-4 py-2 rounded-lg border border-red-200">
+                            <span class="text-red-700 font-medium" id="headerTotalProdutos">0 Produtos</span>
+                        </div>
+                        <div class="bg-red-50 px-4 py-2 rounded-lg border border-red-200">
+                            <span class="text-red-700 font-medium" id="headerEstoqueBaixo">0 Alertas</span>
+                        </div>
+                        <div class="bg-purple-50 px-4 py-2 rounded-lg border border-purple-200">
+                            <span class="text-purple-700 font-medium text-sm">💾 IndexedDB Ativo</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-6">
+                    <!-- Indicador de Conexão -->
+                    <div id="statusConexao" class="text-center bg-gradient-to-br from-gray-50 to-gray-100 px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
+                        <div class="flex items-center justify-center space-x-2">
+                            <div id="statusIcon" class="w-3 h-3 rounded-full bg-gray-400"></div>
+                            <span id="statusText" class="text-sm font-medium text-gray-600">Conectando...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Relógio em Tempo Real -->
+                    <div class="text-center bg-gradient-to-br from-blue-50 to-blue-100 px-4 py-3 rounded-lg border border-blue-200 shadow-sm">
+                        <div id="relogioData" class="text-sm font-medium text-blue-800"></div>
+                        <div id="relogioHora" class="text-lg font-bold text-blue-900"></div>
+                    </div>
+                    
+                    <div class="text-right">
+                        <p class="text-sm text-gray-500">Usuário logado</p>
+                        <span id="userInfo" class="text-lg font-semibold text-gray-800"></span>
+                    </div>
+                    <button id="logoutBtn" class="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition duration-200 font-medium shadow-md">
+                        🚪 Sair
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex">
+            <!-- Sidebar -->
+            <nav class="w-64 bg-blue-800 min-h-screen">
+                <div class="p-4">
+                    <div class="space-y-2">
+                        <button class="sidebar-item active w-full text-left px-4 py-3 text-white rounded-lg transition duration-200" data-tab="dashboard">
+                            📊 Dashboard
+                        </button>
+                        <button class="sidebar-item w-full text-left px-4 py-3 text-white rounded-lg transition duration-200" data-tab="produtos">
+                            📦 Produtos por Categoria
+                        </button>
+                        <button class="sidebar-item w-full text-left px-4 py-3 text-white rounded-lg transition duration-200" data-tab="alfabetico">
+                            🔤 Ordem Alfabética
+                        </button>
+                        <button class="sidebar-item w-full text-left px-4 py-3 text-white rounded-lg transition duration-200" data-tab="notas">
+                            📄 Notas Fiscais
+                        </button>
+                        <button class="sidebar-item w-full text-left px-4 py-3 text-white rounded-lg transition duration-200" data-tab="saidas">
+                            📤 Saídas Diárias
+                        </button>
+                        <button class="sidebar-item w-full text-left px-4 py-3 text-white rounded-lg transition duration-200" data-tab="estoque-geral">
+                            📋 Estoque Geral
+                        </button>
+                        <button class="sidebar-item w-full text-left px-4 py-3 text-white rounded-lg transition duration-200" data-tab="relatorios">
+                            📈 Relatórios
+                        </button>
+                        <button class="sidebar-item w-full text-left px-4 py-3 text-white rounded-lg transition duration-200" data-tab="painel-adm">
+                            👥 Painel ADM
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="flex-1 p-6">
+                <!-- Dashboard Tab -->
+                <div id="dashboard" class="tab-content active">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-6">Dashboard</h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">Total de Produtos</p>
+                                    <p id="totalProdutos" class="text-3xl font-bold text-blue-600">0</p>
+                                </div>
+                                <div class="text-blue-500 text-3xl">📦</div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">Saídas Hoje</p>
+                                    <p id="saidasHoje" class="text-3xl font-bold text-green-600">0</p>
+                                </div>
+                                <div class="text-green-500 text-3xl">📤</div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">Estoque Baixo</p>
+                                    <p id="estoqueBaixo" class="text-3xl font-bold text-red-600">0</p>
+                                </div>
+                                <div class="text-red-500 text-3xl">⚠️</div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">Notas Fiscais</p>
+                                    <p id="totalNotas" class="text-3xl font-bold text-purple-600">0</p>
+                                </div>
+                                <div class="text-purple-500 text-3xl">📄</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-semibold mb-4">Produtos com Estoque Baixo</h3>
+                        <div id="produtosBaixoEstoque" class="space-y-2">
+                            <p class="text-gray-500">Nenhum produto com estoque baixo</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Produtos por Categoria Tab -->
+                <div id="produtos" class="tab-content">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-bold text-gray-800">Produtos por Categoria</h2>
+                        <button id="addProdutoBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-200">
+                            + Adicionar Produto
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Detergentes -->
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-xl font-semibold mb-4 text-blue-600">🧽 Detergentes</h3>
+                            <div id="detergentes" class="space-y-3">
+                                <!-- Produtos serão adicionados aqui -->
+                            </div>
+                        </div>
+
+                        <!-- Desinfetantes -->
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-xl font-semibold mb-4 text-green-600">🦠 Desinfetantes</h3>
+                            <div id="desinfetantes" class="space-y-3">
+                                <!-- Produtos serão adicionados aqui -->
+                            </div>
+                        </div>
+
+                        <!-- Utensílios -->
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-xl font-semibold mb-4 text-purple-600">🧹 Utensílios</h3>
+                            <div id="utensilios" class="space-y-3">
+                                <!-- Produtos serão adicionados aqui -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ordem Alfabética Tab -->
+                <div id="alfabetico" class="tab-content">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-6">Produtos em Ordem Alfabética</h2>
+                    
+                    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                        <div class="p-4 bg-gray-50 border-b">
+                            <input type="text" id="searchProduto" placeholder="Buscar produto..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produto</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estoque</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unidade</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaProdutos" class="bg-white divide-y divide-gray-200">
+                                    <!-- Produtos serão listados aqui -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notas Fiscais Tab -->
+                <div id="notas" class="tab-content">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-bold text-gray-800">Arquivo de Notas Fiscais</h2>
+                        <button id="addNotaBtn" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition duration-200">
+                            + Adicionar Nota
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Notas de Entrada -->
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-xl font-semibold mb-4 text-green-600">📥 Notas de Entrada</h3>
+                            <div id="notasEntrada" class="space-y-3 max-h-96 overflow-y-auto">
+                                <!-- Notas serão adicionadas aqui -->
+                            </div>
+                        </div>
+
+                        <!-- Notas de Saída -->
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-xl font-semibold mb-4 text-red-600">📤 Notas de Saída</h3>
+                            <div id="notasSaida" class="space-y-3 max-h-96 overflow-y-auto">
+                                <!-- Notas serão adicionadas aqui -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Saídas Diárias Tab -->
+                <div id="saidas" class="tab-content">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-bold text-gray-800">Saídas Diárias</h2>
+                        <button id="addSaidaBtn" class="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition duration-200">
+                            + Registrar Saída
+                        </button>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data/Hora</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produto</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantidade</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsável</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Matrícula</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Setor</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaSaidas" class="bg-white divide-y divide-gray-200">
+                                    <!-- Saídas serão listadas aqui -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Estoque Geral Tab -->
+                <div id="estoque-geral" class="tab-content">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-bold text-gray-800">Estoque Geral</h2>
+                        <div class="flex space-x-3">
+                            <button id="exportarPdfBtn" class="bg-green-500 text-white px-8 py-4 rounded-lg hover:bg-green-600 transition duration-200 font-bold text-lg shadow-lg">
+                                📱 Enviar PDF para WhatsApp
+                            </button>
+                            <button id="atualizarEstoqueBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-200">
+                                🔄 Atualizar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
+                            <h3 class="text-lg font-semibold text-green-600 mb-2">Total em Estoque</h3>
+                            <p id="valorTotalEstoque" class="text-3xl font-bold text-green-700">0</p>
+                            <p class="text-sm text-gray-600">itens cadastrados</p>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-yellow-500">
+                            <h3 class="text-lg font-semibold text-yellow-600 mb-2">Estoque Médio</h3>
+                            <p id="estoquemedio" class="text-3xl font-bold text-yellow-700">0</p>
+                            <p class="text-sm text-gray-600">por produto</p>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-red-500">
+                            <h3 class="text-lg font-semibold text-red-600 mb-2">Críticos</h3>
+                            <p id="produtosCriticos" class="text-3xl font-bold text-red-700">0</p>
+                            <p class="text-sm text-gray-600">produtos em falta</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                        <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
+                            <h3 class="text-xl font-semibold">Inventário Completo</h3>
+                            <div class="flex space-x-2">
+                                <select id="filtroCategoria" class="px-3 py-2 border border-gray-300 rounded-lg">
+                                    <option value="">Todas as categorias</option>
+                                    <option value="detergentes">Detergentes</option>
+                                    <option value="desinfetantes">Desinfetantes</option>
+                                    <option value="utensilios">Utensílios</option>
+                                </select>
+                                <input type="text" id="buscaEstoque" placeholder="Buscar produto..." class="px-3 py-2 border border-gray-300 rounded-lg">
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-red-50">
+                                    <tr>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-red-700 uppercase tracking-wider">Produto</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-red-700 uppercase tracking-wider">Categoria</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-red-700 uppercase tracking-wider">Quantidade</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-red-700 uppercase tracking-wider">Unidade</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-red-700 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-red-700 uppercase tracking-wider">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaEstoqueGeral" class="bg-white divide-y divide-gray-200">
+                                    <!-- Produtos serão listados aqui -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Relatórios Tab -->
+                <div id="relatorios" class="tab-content">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-6">Relatórios</h2>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-xl font-semibold mb-4">Relatório de Estoque</h3>
+                            <button id="gerarRelatorioEstoque" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition duration-200">
+                                Gerar Relatório
+                            </button>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-lg shadow-md">
+                            <h3 class="text-xl font-semibold mb-4">Relatório de Movimentação</h3>
+                            <button id="gerarRelatorioMovimentacao" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition duration-200">
+                                Gerar Relatório
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Painel ADM Tab -->
+                <div id="painel-adm" class="tab-content">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-bold text-gray-800">Painel Administrativo</h2>
+                        <button id="addUsuarioBtn" class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition duration-200 font-medium">
+                            👤 Cadastrar Usuário
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-purple-500">
+                            <h3 class="text-lg font-semibold text-purple-600 mb-2">Total de Usuários</h3>
+                            <p id="totalUsuarios" class="text-3xl font-bold text-purple-700">0</p>
+                            <p class="text-sm text-gray-600">cadastrados no sistema</p>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
+                            <h3 class="text-lg font-semibold text-blue-600 mb-2">Usuários Ativos</h3>
+                            <p id="usuariosAtivos" class="text-3xl font-bold text-blue-700">1</p>
+                            <p class="text-sm text-gray-600">logados hoje</p>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
+                            <h3 class="text-lg font-semibold text-green-600 mb-2">Administradores</h3>
+                            <p id="totalAdmins" class="text-3xl font-bold text-green-700">0</p>
+                            <p class="text-sm text-gray-600">com acesso total</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                        <div class="p-4 bg-purple-50 border-b flex justify-between items-center">
+                            <h3 class="text-xl font-semibold text-purple-800">Usuários Cadastrados</h3>
+                            <div class="flex space-x-2">
+                                <select id="filtroTipoUsuario" class="px-3 py-2 border border-gray-300 rounded-lg">
+                                    <option value="">Todos os tipos</option>
+                                    <option value="admin">Administradores</option>
+                                    <option value="usuario">Usuários</option>
+                                </select>
+                                <input type="text" id="buscaUsuario" placeholder="Buscar usuário..." class="px-3 py-2 border border-gray-300 rounded-lg">
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-purple-50">
+                                    <tr>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-purple-700 uppercase tracking-wider">Nome</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-purple-700 uppercase tracking-wider">Email</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-purple-700 uppercase tracking-wider">Matrícula</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-purple-700 uppercase tracking-wider">Tipo</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-purple-700 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-4 text-left text-xs font-bold text-purple-700 uppercase tracking-wider">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaUsuarios" class="bg-white divide-y divide-gray-200">
+                                    <!-- Usuários serão listados aqui -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal para Adicionar Produto -->
+    <div id="modalProduto" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <h3 class="text-xl font-semibold mb-4">Adicionar Produto</h3>
+            <form id="formProduto" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Nome do Produto</label>
+                    <input type="text" id="nomeProduto" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Categoria</label>
+                    <select id="categoriaProduto" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="">Selecione uma categoria</option>
+                        <option value="detergentes">Detergentes</option>
+                        <option value="desinfetantes">Desinfetantes</option>
+                        <option value="utensilios">Utensílios</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Quantidade</label>
+                    <input type="number" id="quantidadeProduto" required min="0" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Unidade</label>
+                    <select id="unidadeProduto" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="">Selecione uma unidade</option>
+                        <option value="un">Unidade</option>
+                        <option value="lt">Litro</option>
+                        <option value="kg">Quilograma</option>
+                        <option value="pct">Pacote</option>
+                    </select>
+                </div>
+                
+                <div class="flex space-x-3 pt-4">
+                    <button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition duration-200">
+                        Adicionar
+                    </button>
+                    <button type="button" id="cancelarProduto" class="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition duration-200">
+                        Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Adicionar Nota Fiscal -->
+    <div id="modalNota" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <h3 class="text-xl font-semibold mb-4">Adicionar Nota Fiscal</h3>
+            <form id="formNota" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Número da Nota</label>
+                    <input type="text" id="numeroNota" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Tipo</label>
+                    <select id="tipoNota" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="">Selecione o tipo</option>
+                        <option value="entrada">Entrada</option>
+                        <option value="saida">Saída</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Fornecedor/Cliente</label>
+                    <input type="text" id="fornecedorNota" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Valor Total</label>
+                    <input type="number" id="valorNota" required min="0" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div class="flex space-x-3 pt-4">
+                    <button type="submit" class="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition duration-200">
+                        Adicionar
+                    </button>
+                    <button type="button" id="cancelarNota" class="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition duration-200">
+                        Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Registrar Saída -->
+    <div id="modalSaida" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <h3 class="text-xl font-semibold mb-4">Registrar Saída</h3>
+            <form id="formSaida" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Produto</label>
+                    <select id="produtoSaida" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="">Selecione um produto</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Quantidade</label>
+                    <input type="number" id="quantidadeSaida" required min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Responsável</label>
+                    <input type="text" id="responsavelSaida" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Matrícula</label>
+                    <input type="text" id="matriculaSaida" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Setor de Destino</label>
+                    <select id="setorSaida" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="">Selecione o setor</option>
+                        <option value="Administração">Administração</option>
+                        <option value="Recursos Humanos">Recursos Humanos</option>
+                        <option value="Financeiro">Financeiro</option>
+                        <option value="Operacional">Operacional</option>
+                        <option value="Manutenção">Manutenção</option>
+                        <option value="Limpeza">Limpeza</option>
+                        <option value="Segurança">Segurança</option>
+                        <option value="TI">Tecnologia da Informação</option>
+                        <option value="Almoxarifado">Almoxarifado</option>
+                        <option value="Recepção">Recepção</option>
+                    </select>
+                </div>
+                
+                <div class="flex space-x-3 pt-4">
+                    <button type="submit" class="flex-1 bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 transition duration-200">
+                        Registrar
+                    </button>
+                    <button type="button" id="cancelarSaida" class="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition duration-200">
+                        Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Cadastrar Usuário -->
+    <div id="modalUsuario" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <h3 class="text-xl font-semibold mb-4">Cadastrar Novo Usuário</h3>
+            <form id="formUsuario" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Nome Completo</label>
+                    <input type="text" id="nomeUsuario" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" id="emailUsuario" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Matrícula</label>
+                    <input type="text" id="matriculaUsuario" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Senha</label>
+                    <input type="password" id="senhaUsuario" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Usuário</label>
+                    <select id="tipoUsuario" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                        <option value="">Selecione o tipo</option>
+                        <option value="usuario">Usuário</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                
+                <div class="flex space-x-3 pt-4">
+                    <button type="submit" class="flex-1 bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition duration-200">
+                        Cadastrar
+                    </button>
+                    <button type="button" id="cancelarUsuario" class="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition duration-200">
+                        Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Sistema de dados com banco online
+        let usuarios = [];
+        let produtos = [];
+        let notasFiscais = [];
+        let saidas = [];
+        let usuarioLogado = null;
+        let dbConectado = false;
+
+        // Classe para gerenciar banco de dados IndexedDB + Cloud
+        class DatabaseManager {
+            constructor() {
+                this.isOnline = navigator.onLine;
+                this.db = null;
+                this.dbName = 'EstoqueDB';
+                this.dbVersion = 1;
+                this.setupConnectionMonitor();
+                this.initIndexedDB();
+            }
+
+            // Inicializar IndexedDB
+            async initIndexedDB() {
+                try {
+                    this.db = await this.openIndexedDB();
+                    await this.loadFromIndexedDB();
+                    this.showNotification('💾 Banco local conectado!', 'success');
+                    
+                    // Tentar conectar com Firebase em background
+                    if (this.isOnline && window.db) {
+                        setTimeout(() => this.syncWithCloud(), 1000);
+                    }
+                } catch (error) {
+                    console.error('Erro IndexedDB:', error);
+                    this.loadFromLocal();
+                    this.showNotification('📱 Usando armazenamento básico', 'warning');
+                }
+            }
+
+            openIndexedDB() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, this.dbVersion);
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result);
+                    
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        
+                        // Criar tabelas se não existirem
+                        if (!db.objectStoreNames.contains('usuarios')) {
+                            db.createObjectStore('usuarios', { keyPath: 'id' });
+                        }
+                        if (!db.objectStoreNames.contains('produtos')) {
+                            db.createObjectStore('produtos', { keyPath: 'id' });
+                        }
+                        if (!db.objectStoreNames.contains('notasFiscais')) {
+                            db.createObjectStore('notasFiscais', { keyPath: 'id' });
+                        }
+                        if (!db.objectStoreNames.contains('saidas')) {
+                            db.createObjectStore('saidas', { keyPath: 'id' });
+                        }
+                        if (!db.objectStoreNames.contains('configuracoes')) {
+                            db.createObjectStore('configuracoes', { keyPath: 'chave' });
+                        }
+                    };
+                });
+            }
+
+            // Carregar dados do IndexedDB
+            async loadFromIndexedDB() {
+                try {
+                    usuarios = await this.getFromStore('usuarios') || [];
+                    produtos = await this.getFromStore('produtos') || [];
+                    notasFiscais = await this.getFromStore('notasFiscais') || [];
+                    saidas = await this.getFromStore('saidas') || [];
+                    
+                    // Backup no localStorage
+                    this.saveToLocal();
+                    
+                    console.log('✅ Dados carregados do IndexedDB:', {
+                        usuarios: usuarios.length,
+                        produtos: produtos.length,
+                        notas: notasFiscais.length,
+                        saidas: saidas.length
+                    });
+                } catch (error) {
+                    console.error('Erro ao carregar IndexedDB:', error);
+                    this.loadFromLocal();
+                }
+            }
+
+            // Obter dados de uma tabela
+            getFromStore(storeName) {
+                return new Promise((resolve, reject) => {
+                    if (!this.db) {
+                        resolve([]);
+                        return;
+                    }
+                    
+                    const transaction = this.db.transaction([storeName], 'readonly');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.getAll();
+                    
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+            }
+
+            // Salvar dados no IndexedDB
+            async saveToIndexedDB(storeName, data) {
+                if (!this.db) return false;
+                
+                try {
+                    const transaction = this.db.transaction([storeName], 'readwrite');
+                    const store = transaction.objectStore(storeName);
+                    
+                    // Limpar tabela
+                    await new Promise((resolve, reject) => {
+                        const clearRequest = store.clear();
+                        clearRequest.onsuccess = () => resolve();
+                        clearRequest.onerror = () => reject(clearRequest.error);
+                    });
+                    
+                    // Adicionar todos os dados
+                    for (const item of data) {
+                        await new Promise((resolve, reject) => {
+                            const addRequest = store.add(item);
+                            addRequest.onsuccess = () => resolve();
+                            addRequest.onerror = () => reject(addRequest.error);
+                        });
+                    }
+                    
+                    return true;
+                } catch (error) {
+                    console.error(`Erro ao salvar ${storeName}:`, error);
+                    return false;
+                }
+            }
+
+            // Salvar todos os dados
+            async saveAllData() {
+                try {
+                    await Promise.all([
+                        this.saveToIndexedDB('usuarios', usuarios),
+                        this.saveToIndexedDB('produtos', produtos),
+                        this.saveToIndexedDB('notasFiscais', notasFiscais),
+                        this.saveToIndexedDB('saidas', saidas)
+                    ]);
+                    
+                    // Backup no localStorage
+                    this.saveToLocal();
+                    
+                    // Salvar timestamp da última atualização
+                    await this.saveToIndexedDB('configuracoes', [{
+                        chave: 'ultimaAtualizacao',
+                        valor: new Date().toISOString()
+                    }]);
+                    
+                    return true;
+                } catch (error) {
+                    console.error('Erro ao salvar dados:', error);
+                    this.saveToLocal(); // Fallback
+                    return false;
+                }
+            }
+
+            // Sincronizar com a nuvem
+            async syncWithCloud() {
+                if (!this.isOnline || !window.db) return;
+                
+                try {
+                    this.showNotification('🔄 Sincronizando com a nuvem...', 'info');
+                    
+                    // Carregar dados da nuvem
+                    await this.loadFromCloud();
+                    
+                    // Salvar no IndexedDB
+                    await this.saveAllData();
+                    
+                    dbConectado = true;
+                    this.showNotification('☁️ Sincronização completa!', 'success');
+                    
+                    // Atualizar interface
+                    if (usuarioLogado) {
+                        atualizarDashboard();
+                        carregarProdutos();
+                        carregarNotasFiscais();
+                        carregarSaidas();
+                        atualizarPainelAdm();
+                    }
+                } catch (error) {
+                    console.error('Erro na sincronização:', error);
+                    this.showNotification('⚠️ Erro na sincronização. Dados locais mantidos.', 'warning');
+                }
+            }
+
+            setupConnectionMonitor() {
+                window.addEventListener('online', () => {
+                    this.isOnline = true;
+                    this.showNotification('🌐 Conectado! Sincronizando dados...', 'success');
+                    this.syncLocalToCloud();
+                });
+
+                window.addEventListener('offline', () => {
+                    this.isOnline = false;
+                    this.showNotification('📱 Modo offline ativado', 'warning');
+                });
+            }
+
+            async initDatabase() {
+                try {
+                    if (this.isOnline && window.db) {
+                        await this.loadFromCloud();
+                        dbConectado = true;
+                        this.showNotification('✅ Banco de dados conectado!', 'success');
+                    } else {
+                        this.loadFromLocal();
+                        this.showNotification('📱 Usando dados locais', 'info');
+                    }
+                } catch (error) {
+                    console.error('Erro ao conectar banco:', error);
+                    this.loadFromLocal();
+                    this.showNotification('⚠️ Erro na conexão. Usando dados locais.', 'warning');
+                }
+            }
+
+            async loadFromCloud() {
+                try {
+                    // Carregar usuários
+                    const usuariosSnapshot = await window.firestore.getDocs(
+                        window.firestore.collection(window.db, 'usuarios')
+                    );
+                    usuarios = usuariosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                    // Carregar produtos
+                    const produtosSnapshot = await window.firestore.getDocs(
+                        window.firestore.collection(window.db, 'produtos')
+                    );
+                    produtos = produtosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                    // Carregar notas fiscais
+                    const notasSnapshot = await window.firestore.getDocs(
+                        window.firestore.collection(window.db, 'notasFiscais')
+                    );
+                    notasFiscais = notasSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                    // Carregar saídas
+                    const saidasSnapshot = await window.firestore.getDocs(
+                        window.firestore.collection(window.db, 'saidas')
+                    );
+                    saidas = saidasSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                    // Salvar localmente como backup
+                    this.saveToLocal();
+                } catch (error) {
+                    console.error('Erro ao carregar do cloud:', error);
+                    this.loadFromLocal();
+                }
+            }
+
+            loadFromLocal() {
+                usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
+                produtos = JSON.parse(localStorage.getItem('produtos')) || [];
+                notasFiscais = JSON.parse(localStorage.getItem('notasFiscais')) || [];
+                saidas = JSON.parse(localStorage.getItem('saidas')) || [];
+            }
+
+            saveToLocal() {
+                localStorage.setItem('usuarios', JSON.stringify(usuarios));
+                localStorage.setItem('produtos', JSON.stringify(produtos));
+                localStorage.setItem('notasFiscais', JSON.stringify(notasFiscais));
+                localStorage.setItem('saidas', JSON.stringify(saidas));
+            }
+
+            // Salvar item individual
+            async saveItem(collection, data) {
+                // Salvar no IndexedDB primeiro (mais rápido)
+                await this.saveAllData();
+                
+                // Tentar salvar na nuvem em background
+                if (this.isOnline && window.db) {
+                    try {
+                        const docRef = await window.firestore.addDoc(
+                            window.firestore.collection(window.db, collection), 
+                            data
+                        );
+                        return docRef.id;
+                    } catch (error) {
+                        console.error(`Erro ao salvar ${collection} na nuvem:`, error);
+                        return null;
+                    }
+                }
+                return null;
+            }
+
+            // Atualizar item individual
+            async updateItem(collection, id, data) {
+                // Salvar no IndexedDB primeiro
+                await this.saveAllData();
+                
+                // Tentar atualizar na nuvem em background
+                if (this.isOnline && window.db) {
+                    try {
+                        await window.firestore.updateDoc(
+                            window.firestore.doc(window.db, collection, id), 
+                            data
+                        );
+                    } catch (error) {
+                        console.error(`Erro ao atualizar ${collection} na nuvem:`, error);
+                    }
+                }
+            }
+
+            // Deletar item individual
+            async deleteItem(collection, id) {
+                // Salvar no IndexedDB primeiro
+                await this.saveAllData();
+                
+                // Tentar deletar na nuvem em background
+                if (this.isOnline && window.db) {
+                    try {
+                        await window.firestore.deleteDoc(
+                            window.firestore.doc(window.db, collection, id)
+                        );
+                    } catch (error) {
+                        console.error(`Erro ao deletar ${collection} na nuvem:`, error);
+                    }
+                }
+            }
+
+            async saveToCloud(collection, data) {
+                return await this.saveItem(collection, data);
+            }
+
+            async updateInCloud(collection, id, data) {
+                return await this.updateItem(collection, id, data);
+            }
+
+            async deleteFromCloud(collection, id) {
+                return await this.deleteItem(collection, id);
+            }
+
+            async syncLocalToCloud() {
+                if (!this.isOnline || !window.db) return;
+
+                try {
+                    this.showNotification('🔄 Sincronizando dados...', 'info');
+                    
+                    // Verificar se há dados não sincronizados
+                    let syncCount = 0;
+                    const collections = ['usuarios', 'produtos', 'notasFiscais', 'saidas'];
+                    
+                    for (const collection of collections) {
+                        const data = eval(collection); // usuarios, produtos, etc.
+                        for (const item of data) {
+                            if (!item.synced) {
+                                await this.saveToCloud(collection, { ...item, synced: true });
+                                item.synced = true;
+                                syncCount++;
+                            }
+                        }
+                    }
+
+                    // Salvar dados atualizados
+                    await this.saveAllData();
+
+                    if (syncCount > 0) {
+                        this.showNotification(`✅ ${syncCount} itens sincronizados com a nuvem!`, 'success');
+                    } else {
+                        this.showNotification('✅ Todos os dados já estão sincronizados!', 'success');
+                    }
+                } catch (error) {
+                    console.error('Erro na sincronização:', error);
+                    this.showNotification('❌ Erro na sincronização', 'error');
+                }
+            }
+
+            // Função para exportar dados (backup completo)
+            async exportarDados() {
+                try {
+                    const dadosCompletos = {
+                        usuarios,
+                        produtos,
+                        notasFiscais,
+                        saidas,
+                        dataExportacao: new Date().toISOString(),
+                        versao: '1.0'
+                    };
+
+                    const blob = new Blob([JSON.stringify(dadosCompletos, null, 2)], { 
+                        type: 'application/json' 
+                    });
+                    
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `backup-estoque-${new Date().toISOString().split('T')[0]}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+
+                    this.showNotification('💾 Backup exportado com sucesso!', 'success');
+                } catch (error) {
+                    console.error('Erro ao exportar:', error);
+                    this.showNotification('❌ Erro ao exportar dados', 'error');
+                }
+            }
+
+            // Função para importar dados (restaurar backup)
+            async importarDados(arquivo) {
+                try {
+                    const texto = await arquivo.text();
+                    const dadosImportados = JSON.parse(texto);
+
+                    if (dadosImportados.usuarios) usuarios = dadosImportados.usuarios;
+                    if (dadosImportados.produtos) produtos = dadosImportados.produtos;
+                    if (dadosImportados.notasFiscais) notasFiscais = dadosImportados.notasFiscais;
+                    if (dadosImportados.saidas) saidas = dadosImportados.saidas;
+
+                    // Salvar dados importados
+                    await this.saveAllData();
+
+                    this.showNotification('📥 Dados importados com sucesso!', 'success');
+                    
+                    // Atualizar interface
+                    if (usuarioLogado) {
+                        atualizarDashboard();
+                        carregarProdutos();
+                        carregarNotasFiscais();
+                        carregarSaidas();
+                        atualizarPainelAdm();
+                    }
+                } catch (error) {
+                    console.error('Erro ao importar:', error);
+                    this.showNotification('❌ Erro ao importar dados', 'error');
+                }
+            }
+
+            showNotification(message, type = 'info') {
+                const colors = {
+                    success: 'bg-green-500',
+                    warning: 'bg-yellow-500',
+                    error: 'bg-red-500',
+                    info: 'bg-blue-500'
+                };
+
+                const notification = document.createElement('div');
+                notification.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 max-w-sm`;
+                notification.innerHTML = message;
+                document.body.appendChild(notification);
+
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.remove();
+                    }
+                }, 4000);
+
+                // Atualizar indicador de status
+                this.updateStatusIndicator();
+            }
+
+            updateStatusIndicator() {
+                const statusIcon = document.getElementById('statusIcon');
+                const statusText = document.getElementById('statusText');
+                
+                if (!statusIcon || !statusText) return;
+
+                if (this.db && this.isOnline && dbConectado) {
+                    statusIcon.className = 'w-3 h-3 rounded-full bg-green-500 animate-pulse';
+                    statusText.textContent = '☁️ Sincronizado';
+                    statusText.className = 'text-sm font-medium text-green-600';
+                } else if (this.db && this.isOnline) {
+                    statusIcon.className = 'w-3 h-3 rounded-full bg-blue-500 animate-pulse';
+                    statusText.textContent = '💾 Local + Online';
+                    statusText.className = 'text-sm font-medium text-blue-600';
+                } else if (this.db) {
+                    statusIcon.className = 'w-3 h-3 rounded-full bg-purple-500';
+                    statusText.textContent = '💾 IndexedDB';
+                    statusText.className = 'text-sm font-medium text-purple-600';
+                } else if (this.isOnline) {
+                    statusIcon.className = 'w-3 h-3 rounded-full bg-yellow-500';
+                    statusText.textContent = '⚡ Conectando...';
+                    statusText.className = 'text-sm font-medium text-yellow-600';
+                } else {
+                    statusIcon.className = 'w-3 h-3 rounded-full bg-red-500';
+                    statusText.textContent = '📱 Offline';
+                    statusText.className = 'text-sm font-medium text-red-600';
+                }
+            }
+        }
+
+        // Função para saudação baseada no horário
+        function getHoraSaudacao() {
+            const hora = new Date().getHours();
+            if (hora >= 5 && hora < 12) {
+                return 'Bom dia';
+            } else if (hora >= 12 && hora < 18) {
+                return 'Boa tarde';
+            } else {
+                return 'Boa noite';
+            }
+        }
+
+        // Sistema de notificações rápidas
+        function showQuickAlert(message, type = 'info') {
+            const colors = {
+                success: 'bg-green-500',
+                warning: 'bg-yellow-500',
+                error: 'bg-red-500',
+                info: 'bg-blue-500'
+            };
+
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 max-w-sm transform transition-all duration-300 translate-x-full`;
+            notification.innerHTML = message;
+            document.body.appendChild(notification);
+
+            // Animação de entrada
+            setTimeout(() => {
+                notification.classList.remove('translate-x-full');
+            }, 10);
+
+            // Remover após 3 segundos
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.remove();
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        // Inicializar gerenciador de banco
+        let dbManager;
+        
+        // Aguardar carregamento do Firebase (otimizado)
+        setTimeout(() => {
+            dbManager = new DatabaseManager();
+            
+            // Atualizar interface após carregar dados (reduzido tempo)
+            setTimeout(() => {
+                if (usuarioLogado) {
+                    atualizarDashboard();
+                    carregarProdutos();
+                    carregarNotasFiscais();
+                    carregarSaidas();
+                    atualizarPainelAdm();
+                }
+            }, 500);
+        }, 200);
+
+        // Função para sincronização manual
+        function sincronizarDados() {
+            if (dbManager) {
+                dbManager.syncLocalToCloud();
+                dbManager.showNotification('🔄 Sincronização iniciada...', 'info');
+            }
+        }
+
+        // Adicionar botões de backup e sincronização no header
+        window.addEventListener('load', () => {
+            const headerActions = document.querySelector('.flex.items-center.space-x-6');
+            if (headerActions) {
+                // Botão de Backup
+                const backupButton = document.createElement('button');
+                backupButton.className = 'bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition duration-200 text-sm font-medium';
+                backupButton.innerHTML = '💾 Backup';
+                backupButton.onclick = () => {
+                    if (dbManager) {
+                        dbManager.exportarDados();
+                    }
+                };
+                
+                // Botão de Restaurar
+                const restoreButton = document.createElement('button');
+                restoreButton.className = 'bg-orange-500 text-white px-3 py-2 rounded-lg hover:bg-orange-600 transition duration-200 text-sm font-medium';
+                restoreButton.innerHTML = '📥 Restaurar';
+                restoreButton.onclick = () => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.json';
+                    input.onchange = (e) => {
+                        const arquivo = e.target.files[0];
+                        if (arquivo && dbManager) {
+                            if (confirm('⚠️ ATENÇÃO!\n\nEsta ação irá substituir TODOS os dados atuais pelos dados do backup.\n\nDeseja continuar?')) {
+                                dbManager.importarDados(arquivo);
+                            }
+                        }
+                    };
+                    input.click();
+                };
+                
+                // Botão de Sincronização
+                const syncButton = document.createElement('button');
+                syncButton.className = 'bg-purple-500 text-white px-3 py-2 rounded-lg hover:bg-purple-600 transition duration-200 text-sm font-medium';
+                syncButton.innerHTML = '🔄 Sync';
+                syncButton.onclick = sincronizarDados;
+                
+                // Inserir botões antes do botão de logout
+                const logoutBtn = headerActions.querySelector('#logoutBtn');
+                if (logoutBtn) {
+                    headerActions.insertBefore(backupButton, logoutBtn);
+                    headerActions.insertBefore(restoreButton, logoutBtn);
+                    headerActions.insertBefore(syncButton, logoutBtn);
+                }
+            }
+        });
+
+        // Elementos DOM
+        const loginScreen = document.getElementById('loginScreen');
+        const registerScreen = document.getElementById('registerScreen');
+        const mainApp = document.getElementById('mainApp');
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        const showRegister = document.getElementById('showRegister');
+        const showLogin = document.getElementById('showLogin');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const userInfo = document.getElementById('userInfo');
+
+        // Sistema de autenticação
+        showRegister.addEventListener('click', () => {
+            loginScreen.classList.add('hidden');
+            registerScreen.classList.remove('hidden');
+        });
+
+        showLogin.addEventListener('click', () => {
+            registerScreen.classList.add('hidden');
+            loginScreen.classList.remove('hidden');
+        });
+
+        registerForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            // Mostrar loading instantâneo
+            const submitBtn = registerForm.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = '⚡ Processando...';
+            submitBtn.disabled = true;
+            
+            // Processar de forma síncrona e rápida
+            setTimeout(() => {
+                try {
+                    const nome = document.getElementById('registerName').value.trim();
+                    const email = document.getElementById('registerEmail').value.trim().toLowerCase();
+                    const matricula = document.getElementById('registerMatricula').value.trim();
+                    const senha = document.getElementById('registerPassword').value;
+
+                    // Validações rápidas
+                    if (nome.length < 3) {
+                        showQuickAlert('❌ Nome deve ter pelo menos 3 caracteres!', 'error');
+                        return;
+                    }
+
+                    if (senha.length < 6) {
+                        showQuickAlert('❌ Senha deve ter pelo menos 6 caracteres!', 'error');
+                        return;
+                    }
+
+                    if (usuarios.find(u => u.email === email)) {
+                        showQuickAlert('❌ Email já cadastrado! Tente fazer login.', 'error');
+                        return;
+                    }
+
+                    if (usuarios.find(u => u.matricula === matricula)) {
+                        showQuickAlert('❌ Matrícula já cadastrada!', 'error');
+                        return;
+                    }
+
+                    // Criar usuário instantaneamente
+                    const novoUsuario = {
+                        id: Date.now() + Math.random(),
+                        nome,
+                        email,
+                        matricula,
+                        senha,
+                        tipo: 'usuario',
+                        dataCadastro: new Date().toISOString(),
+                        status: 'ativo',
+                        synced: false
+                    };
+
+                    // Adicionar imediatamente
+                    usuarios.push(novoUsuario);
+                    
+                    // Salvar no IndexedDB e nuvem
+                    if (dbManager) {
+                        dbManager.saveAllData();
+                        if (dbManager.isOnline) {
+                            dbManager.saveToCloud('usuarios', novoUsuario).then(cloudId => {
+                                if (cloudId) {
+                                    novoUsuario.id = cloudId;
+                                    novoUsuario.synced = true;
+                                    dbManager.saveAllData();
+                                }
+                            }).catch(err => console.log('Sync em background:', err));
+                        }
+                    } else {
+                        localStorage.setItem('usuarios', JSON.stringify(usuarios));
+                    }
+                    
+                    // Sucesso instantâneo
+                    showQuickAlert(`✅ Cadastro realizado! Bem-vindo, ${nome}!`, 'success');
+                    
+                    // Transição rápida
+                    registerForm.reset();
+                    registerScreen.classList.add('hidden');
+                    loginScreen.classList.remove('hidden');
+                    
+                    // Preencher email no login
+                    document.getElementById('loginEmail').value = email;
+                    document.getElementById('loginPassword').focus();
+                    
+                } catch (error) {
+                    console.error('Erro no cadastro:', error);
+                    showQuickAlert('❌ Erro ao realizar cadastro!', 'error');
+                } finally {
+                    // Restaurar botão
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                }
+            }, 100); // Delay mínimo para mostrar feedback visual
+        });
+
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            // Mostrar loading instantâneo
+            const submitBtn = loginForm.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = '⚡ Entrando...';
+            submitBtn.disabled = true;
+            
+            // Processar login rapidamente
+            setTimeout(() => {
+                try {
+                    const email = document.getElementById('loginEmail').value.trim();
+                    const senha = document.getElementById('loginPassword').value;
+                    const lembrarLogin = document.getElementById('lembrarLogin').checked;
+
+                    // Verificar credenciais instantaneamente
+                    const usuario = usuarios.find(u => u.email === email && u.senha === senha && u.status === 'ativo');
+                    
+                    if (usuario) {
+                        usuarioLogado = usuario;
+                        userInfo.textContent = `${usuario.nome} (${usuario.matricula})`;
+                        
+                        // Salvar login se solicitado
+                        if (lembrarLogin) {
+                            localStorage.setItem('loginSalvo', JSON.stringify({
+                                email: usuario.email,
+                                nome: usuario.nome,
+                                matricula: usuario.matricula,
+                                id: usuario.id
+                            }));
+                        }
+                        
+                        // Registrar último acesso em background
+                        usuario.ultimoAcesso = new Date().toISOString();
+                        localStorage.setItem('usuarios', JSON.stringify(usuarios));
+                        
+                        // Sync em background (não bloqueia)
+                        if (dbManager && dbManager.isOnline && usuario.synced) {
+                            dbManager.updateInCloud('usuarios', usuario.id, { ultimoAcesso: usuario.ultimoAcesso })
+                                .catch(err => console.log('Sync background:', err));
+                        }
+                        
+                        // Transição instantânea para o app
+                        loginScreen.classList.add('hidden');
+                        mainApp.classList.remove('hidden');
+                        
+                        // Carregar dados imediatamente
+                        atualizarDashboard();
+                        carregarProdutos();
+                        carregarNotasFiscais();
+                        carregarSaidas();
+                        atualizarPainelAdm();
+                        
+                        // Notificação de boas-vindas
+                        const saudacao = getHoraSaudacao();
+                        showQuickAlert(`${saudacao}, ${usuario.nome}! 👋`, 'success');
+                        
+                        loginForm.reset();
+                    } else {
+                        // Verificar se usuário existe mas está inativo
+                        const usuarioInativo = usuarios.find(u => u.email === email && u.senha === senha && u.status === 'inativo');
+                        if (usuarioInativo) {
+                            showQuickAlert('❌ Usuário inativo! Entre em contato com o administrador.', 'error');
+                        } else {
+                            showQuickAlert('❌ Email ou senha incorretos!', 'error');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Erro no login:', error);
+                    showQuickAlert('❌ Erro ao fazer login!', 'error');
+                } finally {
+                    // Restaurar botão
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                }
+            }, 50); // Delay mínimo para feedback visual
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            if (confirm('🚪 Confirmar Logout\n\nDeseja realmente sair do sistema?')) {
+                // Registrar logout
+                if (usuarioLogado && dbManager) {
+                    dbManager.showNotification(`👋 Até logo, ${usuarioLogado.nome}!`, 'info');
+                }
+                
+                usuarioLogado = null;
+                localStorage.removeItem('loginSalvo');
+                
+                // Limpar dados sensíveis da interface
+                userInfo.textContent = '';
+                
+                // Transição suave
+                mainApp.classList.add('hidden');
+                loginScreen.classList.remove('hidden');
+                
+                // Resetar formulário e focar no email
+                loginForm.reset();
+                setTimeout(() => {
+                    document.getElementById('loginEmail').focus();
+                }, 100);
+                
+                // Limpar abas ativas
+                document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+                document.getElementById('dashboard').classList.add('active');
+                
+                document.querySelectorAll('.sidebar-item').forEach(item => item.classList.remove('active'));
+                document.querySelector('[data-tab="dashboard"]').classList.add('active');
+            }
+        });
+
+        // Verificar login salvo ao carregar a página (otimizado)
+        window.addEventListener('load', () => {
+            const loginSalvo = localStorage.getItem('loginSalvo');
+            if (loginSalvo) {
+                try {
+                    const dadosLogin = JSON.parse(loginSalvo);
+                    
+                    // Verificação instantânea sem aguardar
+                    const usuario = usuarios.find(u => u.email === dadosLogin.email && u.status === 'ativo');
+                    if (usuario) {
+                        usuarioLogado = usuario;
+                        userInfo.textContent = `${usuario.nome} (${usuario.matricula})`;
+                        
+                        // Registrar acesso automático
+                        usuario.ultimoAcesso = new Date().toISOString();
+                        localStorage.setItem('usuarios', JSON.stringify(usuarios));
+                        
+                        // Transição instantânea
+                        loginScreen.classList.add('hidden');
+                        mainApp.classList.remove('hidden');
+                        
+                        // Carregar dados imediatamente
+                        atualizarDashboard();
+                        carregarProdutos();
+                        carregarNotasFiscais();
+                        carregarSaidas();
+                        atualizarPainelAdm();
+                        
+                        // Notificação de login automático
+                        setTimeout(() => {
+                            showQuickAlert(`🔐 Login automático! Bem-vindo, ${usuario.nome}`, 'success');
+                        }, 300);
+                    } else {
+                        // Remover login salvo se usuário não existe ou está inativo
+                        localStorage.removeItem('loginSalvo');
+                        showQuickAlert('⚠️ Sessão expirada. Faça login novamente.', 'warning');
+                    }
+                } catch (error) {
+                    console.error('Erro ao verificar login salvo:', error);
+                    localStorage.removeItem('loginSalvo');
+                }
+            }
+        });
+
+        // Sistema de navegação por abas
+        const sidebarItems = document.querySelectorAll('.sidebar-item');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        sidebarItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const tabId = item.getAttribute('data-tab');
+                
+                sidebarItems.forEach(si => si.classList.remove('active'));
+                tabContents.forEach(tc => tc.classList.remove('active'));
+                
+                item.classList.add('active');
+                document.getElementById(tabId).classList.add('active');
+                
+                if (tabId === 'dashboard') {
+                    atualizarDashboard();
+                } else if (tabId === 'alfabetico') {
+                    atualizarTabelaAlfabetica();
+                } else if (tabId === 'estoque-geral') {
+                    atualizarEstoqueGeral();
+                }
+            });
+        });
+
+        // Sistema de produtos
+        const modalProduto = document.getElementById('modalProduto');
+        const addProdutoBtn = document.getElementById('addProdutoBtn');
+        const formProduto = document.getElementById('formProduto');
+        const cancelarProduto = document.getElementById('cancelarProduto');
+
+        addProdutoBtn.addEventListener('click', () => {
+            modalProduto.classList.remove('hidden');
+            modalProduto.classList.add('flex');
+        });
+
+        cancelarProduto.addEventListener('click', () => {
+            modalProduto.classList.add('hidden');
+            modalProduto.classList.remove('flex');
+            formProduto.reset();
+        });
+
+        formProduto.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const nome = document.getElementById('nomeProduto').value;
+            const categoria = document.getElementById('categoriaProduto').value;
+            const quantidade = parseInt(document.getElementById('quantidadeProduto').value);
+            const unidade = document.getElementById('unidadeProduto').value;
+
+            const produto = {
+                id: Date.now() + Math.random(),
+                nome,
+                categoria,
+                quantidade,
+                unidade,
+                dataAdicao: new Date().toISOString(),
+                synced: false
+            };
+
+            // Adicionar instantaneamente
+            produtos.push(produto);
+            
+            // Salvar no IndexedDB e nuvem
+            if (dbManager) {
+                dbManager.saveAllData();
+                if (dbManager.isOnline) {
+                    dbManager.saveToCloud('produtos', produto).then(cloudId => {
+                        if (cloudId) {
+                            produto.id = cloudId;
+                            produto.synced = true;
+                            dbManager.saveAllData();
+                        }
+                    }).catch(err => console.log('Sync background:', err));
+                }
+            } else {
+                localStorage.setItem('produtos', JSON.stringify(produtos));
+            }
+            
+            // Fechar modal e atualizar interface
+            modalProduto.classList.add('hidden');
+            modalProduto.classList.remove('flex');
+            formProduto.reset();
+            
+            carregarProdutos();
+            atualizarDashboard();
+            atualizarTabelaAlfabetica();
+            atualizarSelectProdutos();
+            
+            showQuickAlert('✅ Produto adicionado com sucesso!', 'success');
+        });
+
+        function carregarProdutos() {
+            const categorias = ['detergentes', 'desinfetantes', 'utensilios'];
+            
+            categorias.forEach(categoria => {
+                const container = document.getElementById(categoria);
+                const produtosCategoria = produtos.filter(p => p.categoria === categoria);
+                
+                container.innerHTML = '';
+                
+                if (produtosCategoria.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 text-sm">Nenhum produto cadastrado</p>';
+                } else {
+                    produtosCategoria.forEach(produto => {
+                        const div = document.createElement('div');
+                        div.className = 'flex justify-between items-center p-3 bg-gray-50 rounded-lg';
+                        div.innerHTML = `
+                            <div>
+                                <p class="font-medium">${produto.nome}</p>
+                                <p class="text-sm text-gray-600">${produto.quantidade} ${produto.unidade}</p>
+                            </div>
+                            <button onclick="editarProduto(${produto.id})" class="text-blue-600 hover:text-blue-800 text-sm">
+                                Editar
+                            </button>
+                        `;
+                        container.appendChild(div);
+                    });
+                }
+            });
+        }
+
+        function atualizarTabelaAlfabetica() {
+            const tabela = document.getElementById('tabelaProdutos');
+            const produtosOrdenados = [...produtos].sort((a, b) => a.nome.localeCompare(b.nome));
+            
+            tabela.innerHTML = '';
+            
+            produtosOrdenados.forEach(produto => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${produto.nome}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produto.categoria}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produto.quantidade}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${produto.unidade}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button onclick="editarProduto(${produto.id})" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 mr-2 text-xs">✏️ Editar</button>
+                        <button onclick="removerProduto(${produto.id})" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-xs">🗑️ Remover</button>
+                    </td>
+                `;
+                tabela.appendChild(tr);
+            });
+        }
+
+        // Sistema de busca
+        document.getElementById('searchProduto').addEventListener('input', (e) => {
+            const termo = e.target.value.toLowerCase();
+            const linhas = document.querySelectorAll('#tabelaProdutos tr');
+            
+            linhas.forEach(linha => {
+                const texto = linha.textContent.toLowerCase();
+                linha.style.display = texto.includes(termo) ? '' : 'none';
+            });
+        });
+
+        // Sistema de notas fiscais
+        const modalNota = document.getElementById('modalNota');
+        const addNotaBtn = document.getElementById('addNotaBtn');
+        const formNota = document.getElementById('formNota');
+        const cancelarNota = document.getElementById('cancelarNota');
+
+        addNotaBtn.addEventListener('click', () => {
+            modalNota.classList.remove('hidden');
+            modalNota.classList.add('flex');
+        });
+
+        cancelarNota.addEventListener('click', () => {
+            modalNota.classList.add('hidden');
+            modalNota.classList.remove('flex');
+            formNota.reset();
+        });
+
+        formNota.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const numero = document.getElementById('numeroNota').value;
+            const tipo = document.getElementById('tipoNota').value;
+            const fornecedor = document.getElementById('fornecedorNota').value;
+            const valor = parseFloat(document.getElementById('valorNota').value);
+
+            const nota = {
+                id: Date.now(),
+                numero,
+                tipo,
+                fornecedor,
+                valor,
+                data: new Date().toISOString()
+            };
+
+            notasFiscais.push(nota);
+            localStorage.setItem('notasFiscais', JSON.stringify(notasFiscais));
+            
+            modalNota.classList.add('hidden');
+            modalNota.classList.remove('flex');
+            formNota.reset();
+            
+            carregarNotasFiscais();
+            atualizarDashboard();
+        });
+
+        function carregarNotasFiscais() {
+            const notasEntrada = document.getElementById('notasEntrada');
+            const notasSaida = document.getElementById('notasSaida');
+            
+            const entrada = notasFiscais.filter(n => n.tipo === 'entrada');
+            const saida = notasFiscais.filter(n => n.tipo === 'saida');
+            
+            notasEntrada.innerHTML = '';
+            notasSaida.innerHTML = '';
+            
+            if (entrada.length === 0) {
+                notasEntrada.innerHTML = '<p class="text-gray-500 text-sm">Nenhuma nota de entrada</p>';
+            } else {
+                entrada.forEach(nota => {
+                    const div = document.createElement('div');
+                    div.className = 'p-3 bg-green-50 border border-green-200 rounded-lg';
+                    div.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-medium">NF: ${nota.numero}</p>
+                                <p class="text-sm text-gray-600">${nota.fornecedor}</p>
+                                <p class="text-sm text-green-600">R$ ${nota.valor.toFixed(2)}</p>
+                            </div>
+                            <span class="text-xs text-gray-500">${new Date(nota.data).toLocaleDateString()}</span>
+                        </div>
+                    `;
+                    notasEntrada.appendChild(div);
+                });
+            }
+            
+            if (saida.length === 0) {
+                notasSaida.innerHTML = '<p class="text-gray-500 text-sm">Nenhuma nota de saída</p>';
+            } else {
+                saida.forEach(nota => {
+                    const div = document.createElement('div');
+                    div.className = 'p-3 bg-red-50 border border-red-200 rounded-lg';
+                    div.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-medium">NF: ${nota.numero}</p>
+                                <p class="text-sm text-gray-600">${nota.fornecedor}</p>
+                                <p class="text-sm text-red-600">R$ ${nota.valor.toFixed(2)}</p>
+                            </div>
+                            <span class="text-xs text-gray-500">${new Date(nota.data).toLocaleDateString()}</span>
+                        </div>
+                    `;
+                    notasSaida.appendChild(div);
+                });
+            }
+        }
+
+        // Sistema de saídas
+        const modalSaida = document.getElementById('modalSaida');
+        const addSaidaBtn = document.getElementById('addSaidaBtn');
+        const formSaida = document.getElementById('formSaida');
+        const cancelarSaida = document.getElementById('cancelarSaida');
+
+        addSaidaBtn.addEventListener('click', () => {
+            atualizarSelectProdutos();
+            modalSaida.classList.remove('hidden');
+            modalSaida.classList.add('flex');
+        });
+
+        cancelarSaida.addEventListener('click', () => {
+            modalSaida.classList.add('hidden');
+            modalSaida.classList.remove('flex');
+            formSaida.reset();
+        });
+
+        formSaida.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const produtoId = document.getElementById('produtoSaida').value;
+            const quantidade = parseInt(document.getElementById('quantidadeSaida').value);
+            const responsavel = document.getElementById('responsavelSaida').value;
+            const matricula = document.getElementById('matriculaSaida').value;
+            const setor = document.getElementById('setorSaida').value;
+
+            const produto = produtos.find(p => p.id == produtoId);
+            if (!produto) {
+                showQuickAlert('❌ Produto não encontrado!', 'error');
+                return;
+            }
+
+            if (produto.quantidade < quantidade) {
+                showQuickAlert('❌ Quantidade insuficiente em estoque!', 'error');
+                return;
+            }
+
+            // Atualizar estoque instantaneamente
+            produto.quantidade -= quantidade;
+            
+            // Registrar saída
+            const saida = {
+                id: Date.now() + Math.random(),
+                produtoId,
+                produtoNome: produto.nome,
+                quantidade,
+                responsavel,
+                matricula,
+                setor,
+                dataHora: new Date().toISOString(),
+                synced: false
+            };
+
+            // Adicionar saída instantaneamente
+            saidas.push(saida);
+            
+            // Salvar no IndexedDB e nuvem
+            if (dbManager) {
+                dbManager.saveAllData();
+                if (dbManager.isOnline) {
+                    // Atualizar produto na nuvem
+                    if (produto.synced) {
+                        dbManager.updateInCloud('produtos', produto.id, { quantidade: produto.quantidade })
+                            .catch(err => console.log('Sync background:', err));
+                    }
+                    
+                    // Salvar saída na nuvem
+                    dbManager.saveToCloud('saidas', saida).then(cloudId => {
+                        if (cloudId) {
+                            saida.id = cloudId;
+                            saida.synced = true;
+                            dbManager.saveAllData();
+                        }
+                    }).catch(err => console.log('Sync background:', err));
+                }
+            } else {
+                localStorage.setItem('produtos', JSON.stringify(produtos));
+                localStorage.setItem('saidas', JSON.stringify(saidas));
+            }
+            
+            modalSaida.classList.add('hidden');
+            modalSaida.classList.remove('flex');
+            formSaida.reset();
+            
+            carregarSaidas();
+            carregarProdutos();
+            atualizarDashboard();
+            atualizarTabelaAlfabetica();
+            
+            showQuickAlert('✅ Saída registrada com sucesso!', 'success');
+        });
+
+        function atualizarSelectProdutos() {
+            const select = document.getElementById('produtoSaida');
+            select.innerHTML = '<option value="">Selecione um produto</option>';
+            
+            produtos.forEach(produto => {
+                if (produto.quantidade > 0) {
+                    const option = document.createElement('option');
+                    option.value = produto.id;
+                    option.textContent = `${produto.nome} (${produto.quantidade} ${produto.unidade})`;
+                    select.appendChild(option);
+                }
+            });
+        }
+
+        function carregarSaidas() {
+            const tabela = document.getElementById('tabelaSaidas');
+            const saidasOrdenadas = [...saidas].sort((a, b) => new Date(b.dataHora) - new Date(a.dataHora));
+            
+            tabela.innerHTML = '';
+            
+            saidasOrdenadas.forEach(saida => {
+                const tr = document.createElement('tr');
+                const data = new Date(saida.dataHora);
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${data.toLocaleDateString()} ${data.toLocaleTimeString()}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${saida.produtoNome}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${saida.quantidade}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${saida.responsavel}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${saida.matricula}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+                            ${saida.setor || 'Não informado'}
+                        </span>
+                    </td>
+                `;
+                tabela.appendChild(tr);
+            });
+        }
+
+        // Dashboard
+        function atualizarDashboard() {
+            document.getElementById('totalProdutos').textContent = produtos.length;
+            
+            const hoje = new Date().toDateString();
+            const saidasHoje = saidas.filter(s => new Date(s.dataHora).toDateString() === hoje);
+            document.getElementById('saidasHoje').textContent = saidasHoje.length;
+            
+            const estoqueBaixo = produtos.filter(p => p.quantidade <= 5);
+            document.getElementById('estoqueBaixo').textContent = estoqueBaixo.length;
+            
+            document.getElementById('totalNotas').textContent = notasFiscais.length;
+            
+            // Atualizar header
+            document.getElementById('headerTotalProdutos').textContent = `${produtos.length} Produtos`;
+            document.getElementById('headerEstoqueBaixo').textContent = `${estoqueBaixo.length} Alertas`;
+            
+            // Produtos com estoque baixo
+            const containerBaixoEstoque = document.getElementById('produtosBaixoEstoque');
+            containerBaixoEstoque.innerHTML = '';
+            
+            if (estoqueBaixo.length === 0) {
+                containerBaixoEstoque.innerHTML = '<p class="text-gray-500">Nenhum produto com estoque baixo</p>';
+            } else {
+                estoqueBaixo.forEach(produto => {
+                    const div = document.createElement('div');
+                    div.className = 'flex justify-between items-center p-2 bg-red-50 border border-red-200 rounded';
+                    div.innerHTML = `
+                        <span>${produto.nome}</span>
+                        <span class="text-red-600 font-medium">${produto.quantidade} ${produto.unidade}</span>
+                    `;
+                    containerBaixoEstoque.appendChild(div);
+                });
+            }
+        }
+
+        // Relatórios
+        document.getElementById('gerarRelatorioEstoque').addEventListener('click', () => {
+            let relatorio = 'RELATÓRIO DE ESTOQUE\n';
+            relatorio += '===================\n\n';
+            
+            produtos.forEach(produto => {
+                relatorio += `${produto.nome} - ${produto.quantidade} ${produto.unidade} (${produto.categoria})\n`;
+            });
+            
+            const blob = new Blob([relatorio], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'relatorio-estoque.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        document.getElementById('gerarRelatorioMovimentacao').addEventListener('click', () => {
+            let relatorio = 'RELATÓRIO DE MOVIMENTAÇÃO\n';
+            relatorio += '========================\n\n';
+            
+            saidas.forEach(saida => {
+                const data = new Date(saida.dataHora);
+                relatorio += `${data.toLocaleDateString()} ${data.toLocaleTimeString()} - ${saida.produtoNome} - ${saida.quantidade} - ${saida.responsavel} (${saida.matricula})\n`;
+            });
+            
+            const blob = new Blob([relatorio], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'relatorio-movimentacao.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        // Eventos dos botões do estoque geral
+        document.getElementById('exportarPdfBtn').addEventListener('click', () => {
+            try {
+                const doc = gerarPDFEstoque();
+                const pdfBlob = doc.output('blob');
+                const url = URL.createObjectURL(pdfBlob);
+                
+                // Criar link para download
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `estoque-geral-${new Date().toISOString().split('T')[0]}.pdf`;
+                a.click();
+                
+                // Simular envio para WhatsApp
+                setTimeout(() => {
+                    const numeroWhatsApp = prompt('📱 Digite o número do WhatsApp (com código do país):\nExemplo: 5511999999999');
+                    if (numeroWhatsApp) {
+                        const mensagem = `📦 *RELATÓRIO DE ESTOQUE*\n\nOlá! Segue o relatório de estoque atualizado.\n\n📊 *Resumo:*\n• Total de produtos: ${produtos.length}\n• Produtos críticos: ${produtos.filter(p => p.quantidade <= 5).length}\n• Data: ${new Date().toLocaleDateString('pt-BR')}\n\nO arquivo PDF foi gerado e está pronto para envio!`;
+                        
+                        const whatsappUrl = `https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
+                        window.open(whatsappUrl, '_blank');
+                        
+                        // Notificação
+                        const notification = document.createElement('div');
+                        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+                        notification.innerHTML = '✅ PDF gerado! WhatsApp aberto para envio.';
+                        document.body.appendChild(notification);
+                        
+                        setTimeout(() => notification.remove(), 4000);
+                    }
+                }, 1000);
+                
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                alert('❌ Erro ao gerar PDF. Tente novamente.');
+                console.error('Erro PDF:', error);
+            }
+        });
+
+        document.getElementById('atualizarEstoqueBtn').addEventListener('click', () => {
+            atualizarEstoqueGeral();
+            
+            // Notificação
+            const notification = document.createElement('div');
+            notification.className = 'fixed top-4 right-4 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            notification.innerHTML = '🔄 Estoque atualizado com sucesso!';
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.remove(), 2000);
+        });
+
+        // Funções auxiliares
+        function editarProduto(id) {
+            const produto = produtos.find(p => p.id === id);
+            if (produto) {
+                document.getElementById('nomeProduto').value = produto.nome;
+                document.getElementById('categoriaProduto').value = produto.categoria;
+                document.getElementById('quantidadeProduto').value = produto.quantidade;
+                document.getElementById('unidadeProduto').value = produto.unidade;
+                
+                modalProduto.classList.remove('hidden');
+                modalProduto.classList.add('flex');
+                
+                // Remover produto atual para atualização
+                produtos = produtos.filter(p => p.id !== id);
+                localStorage.setItem('produtos', JSON.stringify(produtos));
+            }
+        }
+
+        function removerProduto(id) {
+            if (confirm('⚠️ ATENÇÃO!\n\nTem certeza que deseja remover este produto?\nEsta ação não pode ser desfeita!')) {
+                const produto = produtos.find(p => p.id === id);
+                produtos = produtos.filter(p => p.id !== id);
+                localStorage.setItem('produtos', JSON.stringify(produtos));
+                
+                // Mostrar confirmação
+                alert(`✅ Produto "${produto.nome}" removido com sucesso!`);
+                
+                carregarProdutos();
+                atualizarDashboard();
+                atualizarTabelaAlfabetica();
+                atualizarEstoqueGeral();
+            }
+        }
+
+        // Funções do Estoque Geral
+        function atualizarEstoqueGeral() {
+            const totalItens = produtos.reduce((total, produto) => total + produto.quantidade, 0);
+            const estoqueMedia = produtos.length > 0 ? Math.round(totalItens / produtos.length) : 0;
+            const criticos = produtos.filter(p => p.quantidade <= 5).length;
+
+            document.getElementById('valorTotalEstoque').textContent = totalItens;
+            document.getElementById('estoquemedio').textContent = estoqueMedia;
+            document.getElementById('produtosCriticos').textContent = criticos;
+
+            carregarTabelaEstoqueGeral();
+        }
+
+        function carregarTabelaEstoqueGeral() {
+            const tabela = document.getElementById('tabelaEstoqueGeral');
+            const produtosOrdenados = [...produtos].sort((a, b) => a.nome.localeCompare(b.nome));
+            
+            tabela.innerHTML = '';
+            
+            produtosOrdenados.forEach(produto => {
+                let status = '';
+                let statusClass = '';
+                
+                if (produto.quantidade === 0) {
+                    status = 'SEM ESTOQUE';
+                    statusClass = 'bg-red-100 text-red-800';
+                } else if (produto.quantidade <= 5) {
+                    status = 'CRÍTICO';
+                    statusClass = 'bg-yellow-100 text-yellow-800';
+                } else if (produto.quantidade <= 10) {
+                    status = 'BAIXO';
+                    statusClass = 'bg-orange-100 text-orange-800';
+                } else {
+                    status = 'NORMAL';
+                    statusClass = 'bg-green-100 text-green-800';
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">${produto.nome}</div>
+                        <div class="text-sm text-gray-500">Cód: ${produto.id}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                            ${produto.categoria}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">
+                        ${produto.quantidade}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        ${produto.unidade}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusClass}">
+                            ${status}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div class="flex space-x-2">
+                            <button onclick="editarProduto(${produto.id})" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-xs">
+                                ✏️ Editar
+                            </button>
+                            <button onclick="removerProdutoConfirmacao(${produto.id})" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-xs">
+                                🗑️ Remover
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tabela.appendChild(tr);
+            });
+        }
+
+        function removerProdutoConfirmacao(id) {
+            const produto = produtos.find(p => p.id === id);
+            if (confirm(`⚠️ CONFIRMAÇÃO DE REMOÇÃO\n\nProduto: ${produto.nome}\nQuantidade: ${produto.quantidade} ${produto.unidade}\n\nDeseja realmente remover este produto?\nEsta ação é IRREVERSÍVEL!`)) {
+                produtos = produtos.filter(p => p.id !== id);
+                localStorage.setItem('produtos', JSON.stringify(produtos));
+                
+                // Notificação de sucesso
+                const notification = document.createElement('div');
+                notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+                notification.innerHTML = `✅ Produto "${produto.nome}" removido com sucesso!`;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.remove();
+                }, 3000);
+                
+                carregarProdutos();
+                atualizarDashboard();
+                atualizarTabelaAlfabetica();
+                atualizarEstoqueGeral();
+            }
+        }
+
+        // Função para gerar e enviar PDF
+        function gerarPDFEstoque() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Cabeçalho
+            doc.setFontSize(20);
+            doc.setTextColor(220, 38, 127);
+            doc.text('RELATÓRIO DE ESTOQUE GERAL', 20, 20);
+            
+            doc.setFontSize(12);
+            doc.setTextColor(0, 0, 0);
+            doc.text('Sistema de Controle - Material de Limpeza', 20, 30);
+            doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 20, 40);
+            doc.text(`Usuário: ${usuarioLogado.nome}`, 20, 50);
+            
+            // Linha separadora
+            doc.setDrawColor(220, 38, 127);
+            doc.line(20, 55, 190, 55);
+            
+            // Resumo
+            const totalItens = produtos.reduce((total, produto) => total + produto.quantidade, 0);
+            const criticos = produtos.filter(p => p.quantidade <= 5).length;
+            
+            doc.setFontSize(14);
+            doc.text('RESUMO EXECUTIVO', 20, 70);
+            doc.setFontSize(10);
+            doc.text(`Total de Produtos: ${produtos.length}`, 20, 80);
+            doc.text(`Total de Itens em Estoque: ${totalItens}`, 20, 90);
+            doc.text(`Produtos Críticos: ${criticos}`, 20, 100);
+            
+            // Tabela de produtos
+            doc.setFontSize(12);
+            doc.text('INVENTÁRIO DETALHADO', 20, 120);
+            
+            let y = 135;
+            doc.setFontSize(8);
+            doc.text('PRODUTO', 20, y);
+            doc.text('CATEGORIA', 80, y);
+            doc.text('QTD', 130, y);
+            doc.text('UNIDADE', 150, y);
+            doc.text('STATUS', 170, y);
+            
+            y += 5;
+            doc.line(20, y, 190, y);
+            y += 10;
+            
+            produtos.forEach(produto => {
+                if (y > 270) {
+                    doc.addPage();
+                    y = 20;
+                }
+                
+                let status = produto.quantidade === 0 ? 'SEM ESTOQUE' : 
+                           produto.quantidade <= 5 ? 'CRÍTICO' : 
+                           produto.quantidade <= 10 ? 'BAIXO' : 'NORMAL';
+                
+                doc.text(produto.nome.substring(0, 25), 20, y);
+                doc.text(produto.categoria, 80, y);
+                doc.text(produto.quantidade.toString(), 130, y);
+                doc.text(produto.unidade, 150, y);
+                doc.text(status, 170, y);
+                y += 8;
+            });
+            
+            // Rodapé
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.text(`Página ${i} de ${pageCount}`, 170, 290);
+                doc.text('Sistema de Estoque - Material de Limpeza', 20, 290);
+            }
+            
+            return doc;
+        }
+
+        // Filtros do estoque geral
+        document.getElementById('filtroCategoria').addEventListener('change', (e) => {
+            filtrarEstoque();
+        });
+
+        document.getElementById('buscaEstoque').addEventListener('input', (e) => {
+            filtrarEstoque();
+        });
+
+        function filtrarEstoque() {
+            const categoria = document.getElementById('filtroCategoria').value;
+            const busca = document.getElementById('buscaEstoque').value.toLowerCase();
+            const linhas = document.querySelectorAll('#tabelaEstoqueGeral tr');
+            
+            linhas.forEach(linha => {
+                const textoLinha = linha.textContent.toLowerCase();
+                const mostrarCategoria = !categoria || textoLinha.includes(categoria);
+                const mostrarBusca = !busca || textoLinha.includes(busca);
+                
+                linha.style.display = (mostrarCategoria && mostrarBusca) ? '' : 'none';
+            });
+        }
+
+        // Sistema de usuários ADM
+        const modalUsuario = document.getElementById('modalUsuario');
+        const addUsuarioBtn = document.getElementById('addUsuarioBtn');
+        const formUsuario = document.getElementById('formUsuario');
+        const cancelarUsuario = document.getElementById('cancelarUsuario');
+
+        addUsuarioBtn.addEventListener('click', () => {
+            modalUsuario.classList.remove('hidden');
+            modalUsuario.classList.add('flex');
+        });
+
+        cancelarUsuario.addEventListener('click', () => {
+            modalUsuario.classList.add('hidden');
+            modalUsuario.classList.remove('flex');
+            formUsuario.reset();
+        });
+
+        formUsuario.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const nome = document.getElementById('nomeUsuario').value;
+            const email = document.getElementById('emailUsuario').value;
+            const matricula = document.getElementById('matriculaUsuario').value;
+            const senha = document.getElementById('senhaUsuario').value;
+            const tipo = document.getElementById('tipoUsuario').value;
+
+            if (usuarios.find(u => u.email === email)) {
+                alert('❌ Email já cadastrado no sistema!');
+                return;
+            }
+
+            if (usuarios.find(u => u.matricula === matricula)) {
+                alert('❌ Matrícula já cadastrada no sistema!');
+                return;
+            }
+
+            const novoUsuario = {
+                id: Date.now(),
+                nome,
+                email,
+                matricula,
+                senha,
+                tipo: tipo || 'usuario',
+                dataCadastro: new Date().toISOString(),
+                status: 'ativo'
+            };
+
+            usuarios.push(novoUsuario);
+            localStorage.setItem('usuarios', JSON.stringify(usuarios));
+            
+            modalUsuario.classList.add('hidden');
+            modalUsuario.classList.remove('flex');
+            formUsuario.reset();
+            
+            atualizarPainelAdm();
+            
+            // Notificação de sucesso
+            const notification = document.createElement('div');
+            notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            notification.innerHTML = `✅ Usuário "${nome}" cadastrado com sucesso!`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.remove(), 3000);
+        });
+
+        function atualizarPainelAdm() {
+            const totalUsuarios = usuarios.length;
+            const totalAdmins = usuarios.filter(u => u.tipo === 'admin').length;
+            
+            document.getElementById('totalUsuarios').textContent = totalUsuarios;
+            document.getElementById('totalAdmins').textContent = totalAdmins;
+            
+            carregarTabelaUsuarios();
+        }
+
+        function carregarTabelaUsuarios() {
+            const tabela = document.getElementById('tabelaUsuarios');
+            const usuariosOrdenados = [...usuarios].sort((a, b) => a.nome.localeCompare(b.nome));
+            
+            tabela.innerHTML = '';
+            
+            usuariosOrdenados.forEach(usuario => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+                
+                const tipoClass = usuario.tipo === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
+                const statusClass = usuario.status === 'ativo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">${usuario.nome}</div>
+                        <div class="text-sm text-gray-500">ID: ${usuario.id}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${usuario.email}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${usuario.matricula}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${tipoClass}">
+                            ${usuario.tipo === 'admin' ? '👑 Admin' : '👤 Usuário'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusClass}">
+                            ${usuario.status === 'ativo' ? '✅ Ativo' : '❌ Inativo'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div class="flex space-x-2">
+                            <button onclick="editarUsuario(${usuario.id})" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-xs">
+                                ✏️ Editar
+                            </button>
+                            <button onclick="alterarStatusUsuario(${usuario.id})" class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-xs">
+                                🔄 Status
+                            </button>
+                            <button onclick="removerUsuario(${usuario.id})" class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-xs">
+                                🗑️ Remover
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tabela.appendChild(tr);
+            });
+        }
+
+        function editarUsuario(id) {
+            const usuario = usuarios.find(u => u.id === id);
+            if (usuario) {
+                document.getElementById('nomeUsuario').value = usuario.nome;
+                document.getElementById('emailUsuario').value = usuario.email;
+                document.getElementById('matriculaUsuario').value = usuario.matricula;
+                document.getElementById('tipoUsuario').value = usuario.tipo;
+                
+                modalUsuario.classList.remove('hidden');
+                modalUsuario.classList.add('flex');
+                
+                // Remover usuário atual para atualização
+                usuarios = usuarios.filter(u => u.id !== id);
+                localStorage.setItem('usuarios', JSON.stringify(usuarios));
+            }
+        }
+
+        function alterarStatusUsuario(id) {
+            const usuario = usuarios.find(u => u.id === id);
+            if (usuario) {
+                usuario.status = usuario.status === 'ativo' ? 'inativo' : 'ativo';
+                localStorage.setItem('usuarios', JSON.stringify(usuarios));
+                atualizarPainelAdm();
+                
+                const notification = document.createElement('div');
+                notification.className = 'fixed top-4 right-4 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+                notification.innerHTML = `🔄 Status do usuário "${usuario.nome}" alterado para ${usuario.status}!`;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => notification.remove(), 3000);
+            }
+        }
+
+        function removerUsuario(id) {
+            const usuario = usuarios.find(u => u.id === id);
+            if (confirm(`⚠️ CONFIRMAÇÃO DE REMOÇÃO\n\nUsuário: ${usuario.nome}\nEmail: ${usuario.email}\n\nDeseja realmente remover este usuário?\nEsta ação é IRREVERSÍVEL!`)) {
+                usuarios = usuarios.filter(u => u.id !== id);
+                localStorage.setItem('usuarios', JSON.stringify(usuarios));
+                
+                const notification = document.createElement('div');
+                notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+                notification.innerHTML = `✅ Usuário "${usuario.nome}" removido com sucesso!`;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => notification.remove(), 3000);
+                
+                atualizarPainelAdm();
+            }
+        }
+
+        // Filtros do painel ADM
+        document.getElementById('filtroTipoUsuario').addEventListener('change', () => {
+            filtrarUsuarios();
+        });
+
+        document.getElementById('buscaUsuario').addEventListener('input', () => {
+            filtrarUsuarios();
+        });
+
+        function filtrarUsuarios() {
+            const tipo = document.getElementById('filtroTipoUsuario').value;
+            const busca = document.getElementById('buscaUsuario').value.toLowerCase();
+            const linhas = document.querySelectorAll('#tabelaUsuarios tr');
+            
+            linhas.forEach(linha => {
+                const textoLinha = linha.textContent.toLowerCase();
+                const mostrarTipo = !tipo || textoLinha.includes(tipo);
+                const mostrarBusca = !busca || textoLinha.includes(busca);
+                
+                linha.style.display = (mostrarTipo && mostrarBusca) ? '' : 'none';
+            });
+        }
+
+        // Atualizar navegação para incluir painel ADM
+        sidebarItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const tabId = item.getAttribute('data-tab');
+                
+                sidebarItems.forEach(si => si.classList.remove('active'));
+                tabContents.forEach(tc => tc.classList.remove('active'));
+                
+                item.classList.add('active');
+                document.getElementById(tabId).classList.add('active');
+                
+                if (tabId === 'dashboard') {
+                    atualizarDashboard();
+                } else if (tabId === 'alfabetico') {
+                    atualizarTabelaAlfabetica();
+                } else if (tabId === 'estoque-geral') {
+                    atualizarEstoqueGeral();
+                } else if (tabId === 'painel-adm') {
+                    atualizarPainelAdm();
+                }
+            });
+        });
+
+        // Função do Relógio em Tempo Real
+        function atualizarRelogio() {
+            const agora = new Date();
+            
+            const opcoesDia = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            };
+            
+            const opcoesHora = {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            };
+            
+            const dataFormatada = agora.toLocaleDateString('pt-BR', opcoesDia);
+            const horaFormatada = agora.toLocaleTimeString('pt-BR', opcoesHora);
+            
+            document.getElementById('relogioData').textContent = dataFormatada;
+            document.getElementById('relogioHora').textContent = horaFormatada;
+        }
+
+        // Atualizar relógio a cada segundo
+        setInterval(atualizarRelogio, 1000);
+        atualizarRelogio(); // Chamada inicial
+
+        // Inicialização
+        if (produtos.length === 0) {
+            // Dados de exemplo
+            produtos = [
+                { id: 1, nome: 'Detergente Neutro', categoria: 'detergentes', quantidade: 50, unidade: 'lt', dataAdicao: new Date().toISOString() },
+                { id: 2, nome: 'Álcool 70%', categoria: 'desinfetantes', quantidade: 30, unidade: 'lt', dataAdicao: new Date().toISOString() },
+                { id: 3, nome: 'Vassoura', categoria: 'utensilios', quantidade: 15, unidade: 'un', dataAdicao: new Date().toISOString() }
+            ];
+            localStorage.setItem('produtos', JSON.stringify(produtos));
+        }
+
+        // Criar usuário admin padrão se não existir
+        if (usuarios.length === 0) {
+            usuarios.push({
+                id: 1,
+                nome: 'Administrador',
+                email: 'admin@sistema.com',
+                matricula: 'ADM001',
+                senha: 'admin123',
+                tipo: 'admin',
+                dataCadastro: new Date().toISOString(),
+                status: 'ativo'
+            });
+            localStorage.setItem('usuarios', JSON.stringify(usuarios));
+        }
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'973e7fb6c27095fc',t:'MTc1NTk5Mjg4Ny4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
